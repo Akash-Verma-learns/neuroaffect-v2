@@ -24,11 +24,26 @@ datasets:
     label_map: {1: 0, 2: 1}
     download_dir: ./data/eeg
 
+  eeg_emotion:
+    name: DEAP Affective EEG
+    # subjects: null means all 32 participants
+    # Reduce list to e.g. [1,2,3,...,16] if memory is tight
+    subjects: null
+    n_channels: 32          # DEAP EEG channels (0–31)
+    n_times: 512            # 4 seconds @ 128 Hz
+    n_classes: 4
+    label_names: [neutral, sadness, fear, distress]
+    download_dir: ./data/eeg_emotion
+    # Manual download required:
+    #   1. Register at https://www.eecs.qmul.ac.uk/mmv/datasets/deap/
+    #   2. Download data_preprocessed_python.zip
+    #   3. Unzip s01.dat … s32.dat into ./data/eeg_emotion/
+
   fmri:
     name: Nilearn Haxby
     subject: 1
     n_classes: 8
-    vol_shape: [32, 32, 32]      # reduced from [40,64,64] — 8x faster
+    vol_shape: [32, 32, 32]
     download_dir: ./data/fmri
 
   face:
@@ -43,21 +58,29 @@ datasets:
   mri:
     name: Figshare Brain Tumour 4-class
     url: "https://figshare.com/ndownloader/articles/1512427/versions/5"
-    img_size: 224                # kept for inference quality
-    img_size_fast: 64            # used during training — 10x faster
+    img_size: 224
+    img_size_fast: 64
     n_classes: 4
     label_names: [glioma, meningioma, pituitary, normal]
     download_dir: ./data/mri
 
 models:
-  embed_dim: 128                 # reduced from 256 — 2x faster fusion
+  embed_dim: 128
 
   eeg_encoder:
     n_channels: 64
     n_times: 641
-    conv_channels: [32, 64, 128] # smaller than before
-    transformer_heads: 4         # reduced from 8
-    transformer_layers: 2        # reduced from 4
+    conv_channels: [32, 64, 128]
+    transformer_heads: 4
+    transformer_layers: 2
+    dropout: 0.2
+
+  eeg_emotion_encoder:
+    n_channels: 32            # DEAP channels
+    n_times: 512              # 4 s @ 128 Hz
+    conv_channels: [32, 64, 128]
+    transformer_heads: 4
+    transformer_layers: 2
     dropout: 0.2
 
   fmri_encoder:
@@ -76,18 +99,26 @@ models:
     dropout: 0.3
 
   fusion:
-    n_heads: 4                   # reduced from 8
+    n_heads: 4
     dropout: 0.2
-    n_fusion_layers: 2           # reduced from 3
+    n_fusion_layers: 2
     tumor_classes: 4
-    emotion_classes: 4
-    mc_dropout_samples: 10       # reduced from 20
+    emotion_classes: 4        # neutral, sadness, fear, distress
+    mc_dropout_samples: 20
 
 training:
   eeg:
     epochs: 10
     batch_size: 64
     lr: 1.0e-3
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    val_split: 0.2
+
+  eeg_emotion:
+    epochs: 30                # DEAP is harder — needs more epochs
+    batch_size: 64
+    lr: 5.0e-4
     weight_decay: 1.0e-4
     scheduler: cosine
     val_split: 0.2
@@ -102,7 +133,7 @@ training:
 
   face:
     epochs: 10
-    batch_size: 256              # larger batch = faster per epoch
+    batch_size: 256
     lr: 1.0e-3
     weight_decay: 1.0e-4
     scheduler: cosine
@@ -111,7 +142,7 @@ training:
 
   mri:
     epochs: 30
-    batch_size: 64               # larger batch = faster
+    batch_size: 64
     lr: 1.0e-3
     weight_decay: 1.0e-4
     scheduler: cosine

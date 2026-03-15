@@ -6,7 +6,7 @@ Docs: http://localhost:8000/docs
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,15 +16,15 @@ from pydantic import BaseModel
 
 from api.inference import predict
 
-# ─────────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="NeuroAffect-TumorNet",
     description=(
         "Multimodal brain tumour detection guided by affective biomarkers.\n\n"
-        "Upload an MRI image (required) and optionally a face image or EEG file "
-        "to receive a tumour classification with uncertainty estimate."
+        "Upload an MRI image (required) and optionally a face image, "
+        "motor EEG, or affective EEG (DEAP format) to receive a tumour "
+        "classification with emotion state and uncertainty estimate."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -34,17 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve frontend
 frontend_dir = Path(__file__).parent.parent / "frontend"
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Schemas
-# ─────────────────────────────────────────────────────────────────────────────
-
-from typing import Any, Dict, Optional
+# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class PredictionResponse(BaseModel):
     tumor_class:          str
@@ -58,14 +53,13 @@ class PredictionResponse(BaseModel):
     inference_method:     Optional[str] = None
     gradcam:              Optional[Dict[str, Any]] = None
 
+
 class HealthResponse(BaseModel):
-    status: str
+    status:  str
     version: str
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Routes
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=FileResponse)
 async def serve_frontend():
@@ -77,38 +71,42 @@ async def serve_frontend():
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "2.0.0"}
 
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_endpoint(
-    mri:  Optional[UploadFile] = File(None,  description="MRI image (.jpg/.png) — primary modality"),
-    face: Optional[UploadFile] = File(None,  description="Face photo (.jpg/.png) — optional"),
-    eeg:  Optional[UploadFile] = File(None,  description="EEG data (.npy/.csv, shape C×T) — optional"),
+    mri:         Optional[UploadFile] = File(None, description="MRI image (.jpg/.png) — required for tumour classification"),
+    face:        Optional[UploadFile] = File(None, description="Face photo (.jpg/.png) — emotion/distress assessment"),
+    eeg:         Optional[UploadFile] = File(None, description="Motor EEG (.npy/.csv, 64ch × T) — PhysioNet EEGBCI format"),
+    eeg_emotion: Optional[UploadFile] = File(None, description="Affective EEG (.npy/.csv, 32ch × T) — DEAP format, real emotion signal"),
 ):
     """
     Run multimodal prediction.
 
-    - **mri**  : Brain MRI slice (grayscale JPEG/PNG, 224×224 recommended)
-    - **face** : Patient face photo (for emotion/distress assessment)
-    - **eeg**  : EEG recording as numpy array or CSV (channels × timepoints)
+    - **mri**         : Brain MRI slice — primary tumour modality
+    - **face**        : Patient face photo — facial expression emotion signal
+    - **eeg**         : Motor imagery EEG (64 channels, PhysioNet EEGBCI format)
+    - **eeg_emotion** : Affective EEG (32 channels, DEAP format) — drives the
+                        negative emotion classification [neutral/sadness/fear/distress]
 
-    At least one modality must be provided. MRI alone gives the most reliable
-    tumour prediction.
+    At least one modality must be provided. For best results provide MRI + eeg_emotion.
     """
-    mri_bytes  = await mri.read()  if mri  else None
-    face_bytes = await face.read() if face else None
-    eeg_bytes  = await eeg.read()  if eeg  else None
+    mri_bytes         = await mri.read()         if mri         else None
+    face_bytes        = await face.read()        if face        else None
+    eeg_bytes         = await eeg.read()         if eeg         else None
+    eeg_emotion_bytes = await eeg_emotion.read() if eeg_emotion else None
 
-    if not any([mri_bytes, face_bytes, eeg_bytes]):
+    if not any([mri_bytes, face_bytes, eeg_bytes, eeg_emotion_bytes]):
         raise HTTPException(
             status_code=422,
-            detail="At least one file (mri, face, or eeg) must be provided.")
+            detail="At least one file (mri, face, eeg, or eeg_emotion) must be provided.")
 
     result = predict(
         mri_bytes=mri_bytes,
         face_bytes=face_bytes,
         eeg_bytes=eeg_bytes,
+        eeg_emotion_bytes=eeg_emotion_bytes,
     )
 
     if "error" in result:
@@ -119,8 +117,7 @@ async def predict_endpoint(
 
 @app.get("/labels")
 async def get_labels():
-    """Returns the class label names used by the model."""
     return {
         "tumor_classes":   ["glioma", "meningioma", "pituitary", "normal"],
-        "emotion_classes": ["distress", "fear", "sadness", "neutral"],
+        "emotion_classes": ["neutral", "sadness", "fear", "distress"],
     }

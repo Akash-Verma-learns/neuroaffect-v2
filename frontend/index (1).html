@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NeuroAffect-TumorNet</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --bg:       #080b10;
+  --surface:  #0e1218;
+  --surface2: #141820;
+  --surface3: #1b2030;
+  --border:   #1e2535;
+  --border2:  #2a3347;
+  --accent:   #4f8eff;
+  --accent2:  #00e5b0;
+  --accent3:  #ff5e87;
+  --text:     #dde3f0;
+  --muted:    #5a6480;
+  --muted2:   #8391b0;
+  --danger:   #ff4d6a;
+  --success:  #00e5b0;
+  --warn:     #ffb930;
+  --r:        10px;
+
+  /* emotion colours */
+  --col-neutral:  #4f8eff;
+  --col-sadness:  #8b7cf8;
+  --col-fear:     #ff9030;
+  --col-distress: #ff4d6a;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Noise overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(180deg, #0c1020 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+.logo {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.header-text h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.header-text p { font-size: 0.72rem; color: var(--muted2); margin-top: 1px; }
+.header-badge {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--accent2);
+  background: rgba(0,229,176,.08);
+  border: 1px solid rgba(0,229,176,.2);
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+
+/* ── Layout ── */
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 1.25rem;
+}
+.card-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.card-title::before {
+  content: '';
+  display: inline-block;
+  width: 2px; height: 12px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* ── Main grid ── */
+.top-row {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 860px) { .top-row { grid-template-columns: 1fr; } }
+
+/* ── Upload zones ── */
+.upload-group { display: flex; flex-direction: column; gap: .55rem; }
+
+.upload-section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: .6rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: .4rem 0 .1rem;
+}
+.upload-section-label:first-child { margin-top: 0; }
+
+.zone {
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  cursor: pointer;
+  position: relative;
+  transition: border-color .2s, background .2s;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-height: 60px;
+}
+.zone:hover, .zone.drag {
+  border-color: var(--accent);
+  background: rgba(79,142,255,.04);
+}
+.zone.loaded {
+  border-color: var(--accent2);
+  border-style: solid;
+  background: rgba(0,229,176,.04);
+}
+.zone.loaded-emotion {
+  border-color: var(--accent3);
+  border-style: solid;
+  background: rgba(255,94,135,.04);
+}
+.zone input {
+  position: absolute;
+  inset: 0; opacity: 0;
+  cursor: pointer;
+  width: 100%; height: 100%;
+}
+.zone-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+.zone-body { flex: 1; min-width: 0; }
+.zone-body .lbl {
+  font-size: .82rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.zone-body .sub { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+.zone-body .fname {
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem;
+  color: var(--accent2);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zone.loaded-emotion .zone-body .fname { color: var(--accent3); }
+
+.badge {
+  font-family: 'DM Mono', monospace;
+  font-size: .57rem;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.badge.req { background: rgba(0,229,176,.15); color: var(--accent2); border: 1px solid rgba(0,229,176,.25); }
+.badge.opt { background: var(--surface3); color: var(--muted2); border: 1px solid var(--border2); }
+.badge.new { background: rgba(255,94,135,.15); color: var(--accent3); border: 1px solid rgba(255,94,135,.25); }
+
+/* Preview strip */
+.preview-strip { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .3rem; }
+.preview-strip img {
+  width: 52px; height: 52px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+}
+
+/* Run button */
+.btn {
+  width: 100%;
+  padding: .8rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Syne', sans-serif;
+  font-size: .9rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+  margin-top: .9rem;
+  transition: background .2s, transform .1s;
+  position: relative;
+}
+.btn:hover { background: #3d7aee; }
+.btn:active { transform: scale(.99); }
+.btn:disabled { background: var(--surface3); color: var(--muted); cursor: not-allowed; transform: none; }
+.btn.loading { color: transparent; }
+.btn.loading::after {
+  content: '';
+  position: absolute; inset: 0; margin: auto;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Results ── */
+.result-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  color: var(--muted);
+  text-align: center;
+  gap: .5rem;
+}
+.result-placeholder .big { font-size: 2.8rem; opacity: .5; }
+.result-placeholder p { font-size: .82rem; }
+.result-placeholder .sub { font-size: .72rem; color: var(--muted); }
+
+.results-panel { display: none; flex-direction: column; gap: 1.1rem; }
+.results-panel.vis { display: flex; }
+
+/* Tumour prediction */
+.pred-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.tumor-class-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: capitalize;
+}
+.tumor-class-label.glioma     { color: var(--danger); }
+.tumor-class-label.meningioma { color: var(--warn); }
+.tumor-class-label.pituitary  { color: #74c0fc; }
+.tumor-class-label.normal     { color: var(--success); }
+
+.conf-block { text-align: right; }
+.conf-pct {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.conf-pill {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-top: 4px;
+}
+.conf-pill.ok   { background: rgba(0,229,176,.12); color: var(--success); border: 1px solid rgba(0,229,176,.25); }
+.conf-pill.warn { background: rgba(255,185,48,.12); color: var(--warn);    border: 1px solid rgba(255,185,48,.25); }
+.conf-pill.bad  { background: rgba(255,77,106,.12); color: var(--danger);  border: 1px solid rgba(255,77,106,.25); }
+
+.sec-label {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: .45rem;
+}
+
+/* Bars */
+.bar-group { display: flex; flex-direction: column; gap: .4rem; }
+.bar-row   { display: flex; align-items: center; gap: .6rem; }
+.bar-lbl   { width: 78px; font-size: .73rem; color: var(--muted2); text-align: right; text-transform: capitalize; }
+.bar-track { flex: 1; height: 7px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 99px; transition: width .7s cubic-bezier(.4,0,.2,1); }
+.bar-pct   { width: 36px; font-family: 'DM Mono', monospace; font-size: .7rem; color: var(--muted2); }
+
+.bar-fill.tumor-glioma     { background: var(--danger); }
+.bar-fill.tumor-meningioma { background: var(--warn); }
+.bar-fill.tumor-pituitary  { background: #74c0fc; }
+.bar-fill.tumor-normal     { background: var(--success); }
+.bar-fill.tumor-default    { background: var(--accent); }
+
+.bar-fill.emo-neutral  { background: var(--col-neutral); }
+.bar-fill.emo-sadness  { background: var(--col-sadness); }
+.bar-fill.emo-fear     { background: var(--col-fear); }
+.bar-fill.emo-distress { background: var(--col-distress); }
+.bar-fill.emo-default  { background: var(--accent2); }
+
+/* Emotion state card */
+.emotion-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .9rem 1rem;
+}
+.emotion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .75rem;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.emotion-class {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.emotion-class.neutral  { color: var(--col-neutral); }
+.emotion-class.sadness  { color: var(--col-sadness); }
+.emotion-class.fear     { color: var(--col-fear); }
+.emotion-class.distress { color: var(--col-distress); }
+
+.emotion-source-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: .6rem;
+  padding: 2px 8px;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+.emotion-source-badge.real {
+  background: rgba(255,94,135,.12);
+  color: var(--accent3);
+  border: 1px solid rgba(255,94,135,.25);
+}
+.emotion-source-badge.inferred {
+  background: var(--surface3);
+  color: var(--muted2);
+  border: 1px solid var(--border2);
+}
+
+/* Emotion dot indicator */
+.emotion-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+.emotion-dot.neutral  { background: var(--col-neutral); }
+.emotion-dot.sadness  { background: var(--col-sadness); }
+.emotion-dot.fear     { background: var(--col-fear); }
+.emotion-dot.distress { background: var(--col-distress); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .6; transform: scale(1.3); }
+}
+
+/* Modality tags */
+.mod-row { display: flex; gap: .4rem; flex-wrap: wrap; }
+.mod-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: var(--muted2);
+}
+.mod-tag.eeg-emotion {
+  background: rgba(255,94,135,.08);
+  border-color: rgba(255,94,135,.2);
+  color: var(--accent3);
+}
+
+/* Note box */
+.note-box {
+  background: rgba(79,142,255,.06);
+  border: 1px solid rgba(79,142,255,.18);
+  border-radius: 8px;
+  padding: .6rem .9rem;
+  font-size: .78rem;
+  color: var(--muted2);
+  line-height: 1.5;
+}
+.method-box {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  color: var(--muted);
+  padding-top: .3rem;
+}
+
+/* Error */
+.err-box {
+  background: rgba(255,77,106,.08);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: .6rem .9rem;
+  color: var(--danger);
+  font-size: .8rem;
+  display: none;
+}
+
+/* ── Grad-CAM ── */
+.gradcam-wrap { display: none; }
+.gradcam-wrap.vis { display: block; }
+
+.gradcam-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .75rem;
+  margin-top: .85rem;
+}
+@media (max-width: 700px) { .gradcam-grid { grid-template-columns: 1fr; } }
+
+.gc-cell { display: flex; flex-direction: column; gap: .4rem; }
+.gc-cell img {
+  width: 100%; aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: #060a0f;
+}
+.gc-lbl { font-size: .72rem; color: var(--muted2); text-align: center; line-height: 1.4; }
+.gc-lbl strong { color: var(--text); display: block; }
+.heat-legend { display: flex; align-items: center; gap: .5rem; margin-top: .2rem; }
+.heat-bar {
+  flex: 1; height: 6px; border-radius: 99px;
+  background: linear-gradient(to right, #00f, #0ff, #0f0, #ff0, #f00);
+}
+.heat-lbl { font-family: 'DM Mono', monospace; font-size: .6rem; color: var(--muted); }
+
+.gc-footer {
+  margin-top: .75rem;
+  font-size: .75rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.gc-footer strong { color: var(--muted2); }
+
+.explain-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .9rem 1rem;
+  font-size: .76rem;
+  line-height: 1.7;
+  color: var(--muted2);
+  margin-top: .75rem;
+}
+.explain-box strong { color: var(--text); }
+
+.gradcam-placeholder {
+  font-size: .8rem;
+  color: var(--muted);
+  padding: .3rem 0;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: .25rem 0;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🧠</div>
+  <div class="header-text">
+    <h1>NeuroAffect-TumorNet</h1>
+    <p>Multimodal brain tumour detection · Affective EEG emotion recognition</p>
+  </div>
+  <div class="header-badge">v2.0 · DEAP</div>
+</div>
+
+<div class="page">
+
+  <div class="top-row">
+
+    <!-- ── Upload panel ── -->
+    <div class="card">
+      <div class="card-title">Inputs</div>
+      <div class="upload-group">
+
+        <!-- Tumour modalities -->
+        <div class="upload-section-label">Tumour Detection</div>
+
+        <div class="zone" id="zone-mri"
+             ondragover="drag(event,'mri')" ondragleave="undrag('mri')" ondrop="drop(event,'mri')">
+          <input type="file" id="file-mri" accept="image/*" onchange="picked('mri',this)"/>
+          <div class="zone-icon">🏥</div>
+          <div class="zone-body">
+            <div class="lbl">Brain MRI Slice <span class="badge req">Required</span></div>
+            <div class="sub">JPEG or PNG · generates Grad-CAM++</div>
+            <div class="fname" id="name-mri"></div>
+          </div>
+        </div>
+
+        <div class="preview-strip" id="previews"></div>
+
+        <div class="zone" id="zone-eeg"
+             ondragover="drag(event,'eeg')" ondragleave="undrag('eeg')" ondrop="drop(event,'eeg')">
+          <input type="file" id="file-eeg" accept=".npy,.csv,.txt" onchange="picked('eeg',this)"/>
+          <div class="zone-icon">📈</div>
+          <div class="zone-body">
+            <div class="lbl">Motor EEG <span class="badge opt">Optional</span></div>
+            <div class="sub">.npy or .csv · 64ch × T · PhysioNet format</div>
+            <div class="fname" id="name-eeg"></div>
+          </div>
+        </div>
+
+        <!-- Emotion modalities -->
+        <div class="upload-section-label" style="margin-top:.6rem">Emotion Recognition</div>
+
+        <div class="zone" id="zone-eeg_emotion"
+             ondragover="drag(event,'eeg_emotion')" ondragleave="undrag('eeg_emotion')" ondrop="drop(event,'eeg_emotion')">
+          <input type="file" id="file-eeg_emotion" accept=".npy,.csv,.txt" onchange="picked('eeg_emotion',this)"/>
+          <div class="zone-icon">🧬</div>
+          <div class="zone-body">
+            <div class="lbl">Affective EEG <span class="badge new">New · DEAP</span></div>
+            <div class="sub">.npy or .csv · 32ch × T · drives real emotion output</div>
+            <div class="fname" id="name-eeg_emotion"></div>
+          </div>
+        </div>
+
+        <div class="zone" id="zone-face"
+             ondragover="drag(event,'face')" ondragleave="undrag('face')" ondrop="drop(event,'face')">
+          <input type="file" id="file-face" accept="image/*" onchange="picked('face',this)"/>
+          <div class="zone-icon">🫥</div>
+          <div class="zone-body">
+            <div class="lbl">Face Photo <span class="badge opt">Optional</span></div>
+            <div class="sub">JPEG or PNG · facial expression signal</div>
+            <div class="fname" id="name-face"></div>
+          </div>
+        </div>
+
+      </div>
+      <button class="btn" id="run-btn" onclick="runPred()" disabled>Run Prediction</button>
+    </div>
+
+    <!-- ── Results panel ── -->
+    <div class="card">
+      <div class="card-title">Prediction Results</div>
+
+      <div class="result-placeholder" id="placeholder">
+        <div class="big">🔬</div>
+        <p>Upload a brain MRI to begin</p>
+        <p class="sub">Add affective EEG for real emotion recognition</p>
+      </div>
+
+      <div class="results-panel" id="results">
+
+        <!-- Tumour -->
+        <div>
+          <div class="sec-label">Tumour classification</div>
+          <div class="pred-row">
+            <div class="tumor-class-label" id="tumor-lbl">—</div>
+            <div class="conf-block">
+              <div class="conf-pct" id="conf-pct">—</div>
+              <span class="conf-pill" id="conf-pill">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="sec-label">Tumour probabilities</div>
+          <div class="bar-group" id="tumor-bars"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Emotion -->
+        <div class="emotion-card">
+          <div class="emotion-header">
+            <div class="sec-label" style="margin:0">Emotional State</div>
+            <span class="emotion-source-badge" id="emo-source-badge">inferred</span>
+          </div>
+          <div class="emotion-class" id="emo-lbl">—</div>
+          <div class="bar-group" id="emo-bars" style="margin-top:.7rem"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Meta -->
+        <div>
+          <div class="sec-label">Modalities used</div>
+          <div class="mod-row" id="mod-tags"></div>
+        </div>
+
+        <div class="note-box" id="note-box"></div>
+        <div class="method-box" id="method-box"></div>
+
+      </div>
+
+      <div class="err-box" id="err-box"></div>
+    </div>
+  </div>
+
+  <!-- ── Grad-CAM panel ── -->
+  <div class="card">
+    <div class="card-title">Grad-CAM++ Explainability</div>
+
+    <div class="gradcam-placeholder" id="gradcam-placeholder">
+      Upload an MRI and run prediction to see the Grad-CAM++ explanation.
+    </div>
+
+    <div class="gradcam-wrap" id="gradcam-wrap">
+      <div class="gradcam-grid">
+        <div class="gc-cell">
+          <img id="gc-original" src="" alt="Original MRI"/>
+          <div class="gc-lbl"><strong>Original MRI</strong>CLAHE + edge enhanced input</div>
+        </div>
+        <div class="gc-cell">
+          <img id="gc-heatmap" src="" alt="Grad-CAM++ Heatmap"/>
+          <div class="gc-lbl"><strong>Grad-CAM++ Heatmap</strong>Model attention — hot = important</div>
+          <div class="heat-legend">
+            <span class="heat-lbl">Low</span>
+            <div class="heat-bar"></div>
+            <span class="heat-lbl">High</span>
+          </div>
+        </div>
+        <div class="gc-cell">
+          <img id="gc-overlay" src="" alt="Overlay"/>
+          <div class="gc-lbl"><strong>Overlay</strong>Verify heatmap covers tumour region</div>
+        </div>
+      </div>
+
+      <div class="gc-footer">
+        Predicted class: <strong id="gc-classname">—</strong>
+        &nbsp;·&nbsp;
+        If the heatmap does <em>not</em> overlap the tumour, the model may be relying on image artefacts.
+      </div>
+    </div>
+
+    <div class="explain-box">
+      <strong>Why this matters:</strong>
+      Grad-CAM++ reveals whether the model is attending to the tumour region or spurious artefacts
+      (e.g. scanner watermarks). Hot (red) regions had the highest positive influence on the prediction.
+      <br/><br/>
+      <strong>Emotion + tumour link:</strong>
+      The affective EEG encoder was trained on DEAP valence/arousal/dominance labels and maps
+      32-channel EEG to four negative emotion states — <em>neutral, sadness, fear, distress</em>.
+      This signal contributes to both the emotion head and, via cross-modal attention in the fusion
+      model, to the tumour classification — reflecting clinical evidence that patient emotional state
+      correlates with tumour grade.
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+const API = '';
+const files = { mri: null, face: null, eeg: null, eeg_emotion: null };
+
+const EMOTION_ICONS = {
+  neutral:  '😐',
+  sadness:  '😢',
+  fear:     '😨',
+  distress: '😰',
+};
+
+function picked(mod, input) {
+  const f = input.files[0];
+  if (!f) return;
+  files[mod] = f;
+  document.getElementById(`name-${mod}`).textContent = f.name;
+  const zone = document.getElementById(`zone-${mod}`);
+  zone.classList.remove('drag');
+  zone.classList.add(mod === 'eeg_emotion' ? 'loaded-emotion' : 'loaded');
+
+  if (mod === 'mri' || mod === 'face') {
+    const r = new FileReader();
+    r.onload = e => {
+      let img = document.getElementById(`prev-${mod}`);
+      if (!img) {
+        img = document.createElement('img');
+        img.id = `prev-${mod}`;
+        img.title = mod.toUpperCase();
+        document.getElementById('previews').appendChild(img);
+      }
+      img.src = e.target.result;
+    };
+    r.readAsDataURL(f);
+  }
+  document.getElementById('run-btn').disabled = !files.mri;
+}
+
+function drag(e, m)  { e.preventDefault(); document.getElementById(`zone-${m}`).classList.add('drag'); }
+function undrag(m)   { document.getElementById(`zone-${m}`).classList.remove('drag'); }
+function drop(e, m)  {
+  e.preventDefault(); undrag(m);
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  picked(m, { files: e.dataTransfer.files });
+}
+
+async function runPred() {
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('loading'); btn.disabled = true;
+  document.getElementById('err-box').style.display = 'none';
+  document.getElementById('results').classList.remove('vis');
+  document.getElementById('gradcam-wrap').classList.remove('vis');
+  document.getElementById('placeholder').style.display = 'flex';
+  document.getElementById('gradcam-placeholder').style.display = 'block';
+
+  const fd = new FormData();
+  if (files.mri)         fd.append('mri',         files.mri);
+  if (files.face)        fd.append('face',        files.face);
+  if (files.eeg)         fd.append('eeg',         files.eeg);
+  if (files.eeg_emotion) fd.append('eeg_emotion', files.eeg_emotion);
+
+  try {
+    const resp = await fetch(`${API}/predict`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!resp.ok) { showErr(data.detail || JSON.stringify(data)); return; }
+    showResults(data);
+  } catch (e) {
+    showErr(`Network error: ${e.message}`);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = !files.mri;
+  }
+}
+
+function showErr(msg) {
+  const b = document.getElementById('err-box');
+  b.textContent = '⚠ ' + msg;
+  b.style.display = 'block';
+}
+
+function showResults(d) {
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('results').classList.add('vis');
+
+  // Tumour class label
+  const tl = document.getElementById('tumor-lbl');
+  tl.textContent  = cap(d.tumor_class);
+  tl.className    = `tumor-class-label ${d.tumor_class}`;
+
+  // Confidence
+  const pct  = Math.round(d.confidence * 100);
+  document.getElementById('conf-pct').textContent = `${pct}%`;
+  const pill = document.getElementById('conf-pill');
+  if (d.confidence >= 0.75) {
+    pill.textContent = 'High confidence'; pill.className = 'conf-pill ok';
+  } else if (d.confidence >= 0.5) {
+    pill.textContent = 'Moderate confidence'; pill.className = 'conf-pill warn';
+  } else {
+    pill.textContent = 'Low confidence'; pill.className = 'conf-pill bad';
+  }
+
+  // Tumour bars
+  renderTumorBars('tumor-bars', d.tumor_probs);
+
+  // Emotion
+  const emoClass = d.emotion_class || 'neutral';
+  const emoEl    = document.getElementById('emo-lbl');
+  const icon     = EMOTION_ICONS[emoClass] || '🫥';
+  emoEl.innerHTML = `<span class="emotion-dot ${emoClass}"></span>${icon} ${cap(emoClass)}`;
+  emoEl.className = `emotion-class ${emoClass}`;
+
+  renderEmoBars('emo-bars', d.emotion_probs);
+
+  // Show whether emotion came from real affective EEG or fusion inference
+  const hasRealEEG  = d.available_modalities && d.available_modalities.includes('eeg_emotion');
+  const srcBadge    = document.getElementById('emo-source-badge');
+  if (hasRealEEG) {
+    srcBadge.textContent = '⚡ DEAP affective EEG';
+    srcBadge.className   = 'emotion-source-badge real';
+  } else {
+    srcBadge.textContent = 'Inferred (no affective EEG)';
+    srcBadge.className   = 'emotion-source-badge inferred';
+  }
+
+  // Modality tags
+  const tags = document.getElementById('mod-tags');
+  tags.innerHTML = (d.available_modalities || []).map(m =>
+    `<span class="mod-tag ${m === 'eeg_emotion' ? 'eeg-emotion' : ''}">${m === 'eeg_emotion' ? '🧬 ' : ''}${m.toUpperCase()}</span>`
+  ).join('');
+
+  // Note + method
+  document.getElementById('note-box').textContent  = d.note || '';
+  document.getElementById('method-box').textContent = d.inference_method
+    ? `Method: ${d.inference_method}` : '';
+
+  // Grad-CAM
+  if (d.gradcam && d.gradcam.original_b64) {
+    document.getElementById('gc-original').src  = `data:image/png;base64,${d.gradcam.original_b64}`;
+    document.getElementById('gc-heatmap').src   = `data:image/png;base64,${d.gradcam.heatmap_b64}`;
+    document.getElementById('gc-overlay').src   = `data:image/png;base64,${d.gradcam.overlay_b64}`;
+    document.getElementById('gc-classname').textContent = d.gradcam.class_name || '';
+    document.getElementById('gradcam-wrap').classList.add('vis');
+    document.getElementById('gradcam-placeholder').style.display = 'none';
+  }
+}
+
+// Tumour bars — each class gets its own colour
+function renderTumorBars(id, probs) {
+  const c = document.getElementById(id);
+  c.innerHTML = '';
+  const colorMap = {
+    glioma: 'tumor-glioma', meningioma: 'tumor-meningioma',
+    pituitary: 'tumor-pituitary', normal: 'tumor-normal',
+  };
+  Object.entries(probs)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([lbl, p]) => {
+      const cls = colorMap[lbl] || 'tumor-default';
+      c.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-lbl">${lbl}</div>
+          <div class="bar-track">
+            <div class="bar-fill ${cls}" style="width:${p * 100}%"></div>
+          </div>
+          <div class="bar-pct">${(p * 100).toFixed(1)}%</div>
+        </div>`;
+    });
+}
+
+// Emotion bars — each class gets its own colour
+function renderEmoBars(id, probs) {
+  const c = document.getElementById(id);
+  c.innerHTML = '';
+  const colorMap = {
+    neutral: 'emo-neutral', sadness: 'emo-sadness',
+    fear: 'emo-fear', distress: 'emo-distress',
+  };
+  Object.entries(probs)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([lbl, p]) => {
+      const cls = colorMap[lbl] || 'emo-default';
+      c.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-lbl">${lbl}</div>
+          <div class="bar-track">
+            <div class="bar-fill ${cls}" style="width:${p * 100}%"></div>
+          </div>
+          <div class="bar-pct">${(p * 100).toFixed(1)}%</div>
+        </div>`;
+    });
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+</script>
+</body>
+</html>
