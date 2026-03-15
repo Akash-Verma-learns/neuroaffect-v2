@@ -1,0 +1,132 @@
+# NeuroAffect-TumorNet  ·  Fast CPU Config
+
+project:
+  name: neuroaffect-tumornet
+  seed: 42
+  device: auto
+
+paths:
+  data_root:       ./data
+  checkpoint_dir:  ./checkpoints
+  log_dir:         ./logs
+  mlflow_uri:      ./logs/mlruns
+
+datasets:
+  eeg:
+    name: PhysioNet EEGBCI
+    subjects: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    runs: [6, 10, 14]
+    tmin: 0.0
+    tmax: 4.0
+    sfreq: 160
+    n_channels: 64
+    n_classes: 2
+    label_map: {1: 0, 2: 1}
+    download_dir: ./data/eeg
+
+  fmri:
+    name: Nilearn Haxby
+    subject: 1
+    n_classes: 8
+    vol_shape: [32, 32, 32]      # reduced from [40,64,64] — 8x faster
+    download_dir: ./data/fmri
+
+  face:
+    name: FER2013
+    hf_repo: jonatasgrosman/fer2013
+    img_size: 48
+    n_classes: 7
+    label_names: [angry, disgust, fear, happy, sad, surprise, neutral]
+    download_dir: ./data/face
+    cache_dir: ./data/face/hf_cache
+
+  mri:
+    name: Figshare Brain Tumour 4-class
+    url: "https://figshare.com/ndownloader/articles/1512427/versions/5"
+    img_size: 224                # kept for inference quality
+    img_size_fast: 64            # used during training — 10x faster
+    n_classes: 4
+    label_names: [glioma, meningioma, pituitary, normal]
+    download_dir: ./data/mri
+
+models:
+  embed_dim: 128                 # reduced from 256 — 2x faster fusion
+
+  eeg_encoder:
+    n_channels: 64
+    n_times: 641
+    conv_channels: [32, 64, 128] # smaller than before
+    transformer_heads: 4         # reduced from 8
+    transformer_layers: 2        # reduced from 4
+    dropout: 0.2
+
+  fmri_encoder:
+    in_channels: 1
+    conv_channels: [32, 64]
+    dropout: 0.2
+
+  face_encoder:
+    in_channels: 1
+    img_size: 48
+    dropout: 0.3
+
+  mri_encoder:
+    in_channels: 1
+    img_size: 64
+    dropout: 0.3
+
+  fusion:
+    n_heads: 4                   # reduced from 8
+    dropout: 0.2
+    n_fusion_layers: 2           # reduced from 3
+    tumor_classes: 4
+    emotion_classes: 4
+    mc_dropout_samples: 10       # reduced from 20
+
+training:
+  eeg:
+    epochs: 10
+    batch_size: 64
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    val_split: 0.2
+
+  fmri:
+    epochs: 10
+    batch_size: 16
+    lr: 5.0e-4
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    val_split: 0.2
+
+  face:
+    epochs: 10
+    batch_size: 256              # larger batch = faster per epoch
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    val_split: 0.1
+    augment: true
+
+  mri:
+    epochs: 30
+    batch_size: 64               # larger batch = faster
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    val_split: 0.15
+    augment: true
+
+  fusion:
+    epochs: 10
+    batch_size: 32
+    lr: 2.0e-4
+    weight_decay: 1.0e-4
+    scheduler: cosine
+    missing_modality_prob: 0.3
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  reload: false

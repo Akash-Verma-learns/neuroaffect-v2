@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NeuroAffect-TumorNet</title>
+<style>
+:root {
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a;
+  --border:#2a2d3e; --accent:#6c63ff; --accent2:#00d4aa;
+  --text:#e8e8f0; --muted:#7a7a9a; --danger:#ff6b6b;
+  --success:#51cf66; --warn:#ffd43b; --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 2rem;display:flex;align-items:center;gap:1rem}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.header h1{font-size:1.15rem;font-weight:600}
+.header span{color:var(--muted);font-size:0.82rem;margin-left:.5rem}
+.page{max-width:1300px;margin:1.5rem auto;padding:0 1.5rem;display:flex;flex-direction:column;gap:1.25rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem}
+.card-title{font-size:0.9rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.card-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
+.top-row{display:grid;grid-template-columns:340px 1fr;gap:1.25rem}
+@media(max-width:800px){.top-row{grid-template-columns:1fr}}
+.upload-group{display:flex;flex-direction:column;gap:.6rem}
+.zone{border:2px dashed var(--border);border-radius:10px;padding:1rem;text-align:center;cursor:pointer;position:relative;transition:.2s}
+.zone:hover,.zone.drag{border-color:var(--accent);background:rgba(108,99,255,.06)}
+.zone.loaded{border-color:var(--accent2);background:rgba(0,212,170,.06)}
+.zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.zone .ico{font-size:1.5rem;margin-bottom:.3rem}
+.zone .lbl{font-size:.85rem;font-weight:500}
+.zone .sub{font-size:.72rem;color:var(--muted);margin-top:.2rem}
+.badge{display:inline-block;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:99px;margin-bottom:.3rem}
+.badge.req{background:var(--accent2);color:#000}
+.badge.opt{background:var(--border);color:var(--muted)}
+.fname{color:var(--accent2);font-size:.75rem;margin-top:.25rem;word-break:break-all}
+.preview-strip{display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap}
+.preview-strip img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+.btn{width:100%;padding:.8rem;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:.8rem;transition:.2s;position:relative}
+.btn:hover{background:#5a51e0}
+.btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed}
+.btn.loading{color:transparent}
+.btn.loading::after{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;border:3px solid #fff4;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--muted);text-align:center;gap:.6rem}
+.result-placeholder .big{font-size:2.5rem}
+.results-grid{display:none;flex-direction:column;gap:1rem}
+.results-grid.vis{display:flex}
+.pred-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.tumor-cls{font-size:1.5rem;font-weight:700}
+.tumor-cls.glioma{color:var(--danger)}
+.tumor-cls.meningioma{color:var(--warn)}
+.tumor-cls.pituitary{color:#74c0fc}
+.tumor-cls.normal{color:var(--success)}
+.unc-pill{font-size:.72rem;padding:3px 9px;border-radius:99px;font-weight:600}
+.unc-low{background:rgba(81,207,102,.15);color:var(--success)}
+.unc-high{background:rgba(255,107,107,.15);color:var(--danger)}
+.bar-group{display:flex;flex-direction:column;gap:.45rem}
+.bar-row{display:flex;align-items:center;gap:.6rem}
+.bar-label{width:82px;font-size:.76rem;color:var(--muted);text-align:right;text-transform:capitalize}
+.bar-track{flex:1;height:9px;background:var(--border);border-radius:99px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width .6s ease}
+.bar-tumor{background:var(--accent)}
+.bar-emotion{background:var(--accent2)}
+.bar-pct{width:38px;font-size:.74rem}
+.sec-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.35rem}
+.note-box{background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.25);border-radius:8px;padding:.65rem .9rem;font-size:.8rem;color:var(--muted)}
+.mod-tags{display:flex;gap:.4rem;flex-wrap:wrap}
+.mod-tag{font-size:.68rem;background:var(--border);color:var(--text);padding:2px 9px;border-radius:99px}
+.err-box{background:rgba(255,107,107,.1);border:1px solid var(--danger);border-radius:8px;padding:.65rem .9rem;color:var(--danger);font-size:.82rem;display:none}
+.gradcam-section{border-top:1px solid var(--border);padding-top:1.25rem;display:none}
+.gradcam-section.vis{display:block}
+.gradcam-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:.75rem}
+@media(max-width:700px){.gradcam-grid{grid-template-columns:1fr}}
+.gradcam-cell{display:flex;flex-direction:column;align-items:center;gap:.4rem}
+.gradcam-cell img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:#111}
+.gradcam-cell .clabel{font-size:.75rem;color:var(--muted);text-align:center}
+.gradcam-cell .clabel strong{color:var(--text)}
+.heat-legend{display:flex;align-items:center;gap:.6rem;margin-top:.4rem;width:100%}
+.heat-bar{flex:1;height:8px;border-radius:99px;background:linear-gradient(to right,#00f,#0ff,#0f0,#ff0,#f00)}
+.heat-lbl{font-size:.68rem;color:var(--muted)}
+.explain-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.9rem 1rem;font-size:.79rem;line-height:1.65;color:var(--muted);margin-top:.6rem}
+.explain-box strong{color:var(--text)}
+.gradcam-footer{margin-top:.75rem;font-size:.78rem;color:var(--muted)}
+.gradcam-footer strong{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">&#x1F9E0;</div>
+  <h1>NeuroAffect-TumorNet</h1>
+  <span>Multimodal brain tumour detection &middot; Grad-CAM++ explainability</span>
+</div>
+<div class="page">
+  <div class="top-row">
+    <div class="card">
+      <div class="card-title">Upload Inputs</div>
+      <div class="upload-group">
+        <div class="zone" id="zone-mri" ondragover="drag(event,'mri')" ondragleave="undrag('mri')" ondrop="drop(event,'mri')">
+          <input type="file" id="file-mri" accept="image/*" onchange="picked('mri',this)"/>
+          <div class="ico">&#x1F3E5;</div>
+          <span class="badge req">REQUIRED</span>
+          <div class="lbl">Brain MRI Slice</div>
+          <div class="sub">JPEG or PNG &middot; generates Grad-CAM++</div>
+          <div class="fname" id="name-mri"></div>
+        </div>
+        <div class="preview-strip" id="previews"></div>
+        <div class="zone" id="zone-face" ondragover="drag(event,'face')" ondragleave="undrag('face')" ondrop="drop(event,'face')">
+          <input type="file" id="file-face" accept="image/*" onchange="picked('face',this)"/>
+          <div class="ico">&#x1F464;</div>
+          <span class="badge opt">OPTIONAL</span>
+          <div class="lbl">Patient Face Photo</div>
+          <div class="sub">Emotion / distress assessment</div>
+          <div class="fname" id="name-face"></div>
+        </div>
+        <div class="zone" id="zone-eeg" ondragover="drag(event,'eeg')" ondragleave="undrag('eeg')" ondrop="drop(event,'eeg')">
+          <input type="file" id="file-eeg" accept=".npy,.csv,.txt" onchange="picked('eeg',this)"/>
+          <div class="ico">&#x1F4CA;</div>
+          <span class="badge opt">OPTIONAL</span>
+          <div class="lbl">EEG Recording</div>
+          <div class="sub">.npy or .csv &middot; channels &times; timepoints</div>
+          <div class="fname" id="name-eeg"></div>
+        </div>
+      </div>
+      <button class="btn" id="run-btn" onclick="runPred()" disabled>Run Prediction</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Prediction Results</div>
+      <div class="result-placeholder" id="placeholder">
+        <div class="big">&#x1F52C;</div>
+        <div>Upload a brain MRI image to begin</div>
+        <div style="font-size:.78rem">Grad-CAM++ will show what the model focused on</div>
+      </div>
+      <div class="results-grid" id="results">
+        <div class="pred-header">
+          <div>
+            <div class="sec-label">Tumour classification</div>
+            <div class="tumor-cls" id="tumor-lbl">-</div>
+          </div>
+          <div style="text-align:right">
+            <div class="sec-label">Confidence</div>
+            <span class="unc-pill" id="conf-pill">-</span>
+          </div>
+        </div>
+        <div>
+          <div class="sec-label">Tumour probabilities</div>
+          <div class="bar-group" id="tumor-bars"></div>
+        </div>
+        <div>
+          <div class="sec-label">Emotion state</div>
+          <div class="tumor-cls" style="font-size:1rem" id="emo-lbl">-</div>
+          <div class="bar-group" id="emo-bars" style="margin-top:.5rem"></div>
+        </div>
+        <div>
+          <div class="sec-label">Modalities used</div>
+          <div class="mod-tags" id="mod-tags"></div>
+        </div>
+        <div class="note-box" id="note-box"></div>
+      </div>
+      <div class="err-box" id="err-box"></div>
+    </div>
+  </div>
+
+  <!-- Grad-CAM Panel -->
+  <div class="card">
+    <div class="card-title">Grad-CAM++ Explainability</div>
+    <div class="gradcam-section" id="gradcam-section">
+      <div class="gradcam-grid">
+        <div class="gradcam-cell">
+          <img id="gc-original" src="" alt="Original MRI"/>
+          <div class="clabel"><strong>Original MRI</strong><br/>Input to the model</div>
+        </div>
+        <div class="gradcam-cell">
+          <img id="gc-heatmap" src="" alt="Grad-CAM++ Heatmap"/>
+          <div class="clabel"><strong>Grad-CAM++ Heatmap</strong><br/>Model attention — hot = important</div>
+          <div class="heat-legend">
+            <span class="heat-lbl">Low</span>
+            <div class="heat-bar"></div>
+            <span class="heat-lbl">High</span>
+          </div>
+        </div>
+        <div class="gradcam-cell">
+          <img id="gc-overlay" src="" alt="Overlay"/>
+          <div class="clabel"><strong>Overlay</strong><br/>Verify heatmap covers tumour region</div>
+        </div>
+      </div>
+      <div class="gradcam-footer">
+        Predicted class: <strong id="gc-classname">-</strong>
+        &nbsp;&middot;&nbsp;
+        If the heatmap does <em>not</em> overlap the tumour, the model may be relying on image artefacts (dataset bias).
+      </div>
+    </div>
+    <div id="gradcam-placeholder" style="color:var(--muted);font-size:.82rem;padding:.5rem 0">
+      Upload an MRI and run prediction to see the Grad-CAM++ explanation.
+    </div>
+    <div class="explain-box">
+      <strong>Why this matters (Black-box problem):</strong>
+      A model can achieve high test accuracy by learning spurious correlations — for example, if all tumour MRIs in the training set had a bright artefact in one corner due to a faulty scanner, the model would learn to detect that artefact rather than the tumour itself.
+      Grad-CAM++ reveals what the model actually learned by showing which pixels most strongly drove the prediction.
+      <br/><br/>
+      <strong>How it works:</strong>
+      The gradient of the predicted class score is computed with respect to the last convolutional layer activations.
+      Second- and third-order gradient terms (Grad-CAM++ improvement over Grad-CAM) are used to compute
+      per-channel importance weights. The weighted activation maps are summed and upsampled to the original image resolution.
+      Hot (red) regions = high positive influence on the prediction. Blue = low or negative influence.
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+const files = {mri:null,face:null,eeg:null};
+
+function picked(mod, input) {
+  const f = input.files[0]; if (!f) return;
+  files[mod] = f;
+  document.getElementById(`name-${mod}`).textContent = f.name;
+  document.getElementById(`zone-${mod}`).classList.add('loaded');
+  if (mod==='mri'||mod==='face') {
+    const r = new FileReader();
+    r.onload = e => {
+      let img = document.getElementById(`prev-${mod}`);
+      if (!img) { img=document.createElement('img'); img.id=`prev-${mod}`; img.title=mod.toUpperCase(); document.getElementById('previews').appendChild(img); }
+      img.src = e.target.result;
+    };
+    r.readAsDataURL(f);
+  }
+  document.getElementById('run-btn').disabled = !files.mri;
+}
+
+function drag(e,m){e.preventDefault();document.getElementById(`zone-${m}`).classList.add('drag')}
+function undrag(m){document.getElementById(`zone-${m}`).classList.remove('drag')}
+function drop(e,m){
+  e.preventDefault();undrag(m);
+  const f=e.dataTransfer.files[0];if(!f)return;
+  Object.defineProperty(document.getElementById(`file-${m}`),'files',{value:e.dataTransfer.files,configurable:true});
+  picked(m,{files:e.dataTransfer.files});
+}
+
+async function runPred() {
+  const btn=document.getElementById('run-btn');
+  btn.classList.add('loading');btn.disabled=true;
+  document.getElementById('err-box').style.display='none';
+  document.getElementById('results').classList.remove('vis');
+  document.getElementById('gradcam-section').classList.remove('vis');
+  document.getElementById('placeholder').style.display='flex';
+  document.getElementById('gradcam-placeholder').style.display='block';
+
+  const fd=new FormData();
+  if(files.mri)  fd.append('mri', files.mri);
+  if(files.face) fd.append('face',files.face);
+  if(files.eeg)  fd.append('eeg', files.eeg);
+
+  try {
+    const resp=await fetch(`${API}/predict`,{method:'POST',body:fd});
+    const data=await resp.json();
+    if(!resp.ok){showErr(data.detail||JSON.stringify(data));return;}
+    showResults(data);
+  } catch(e){showErr(`Network error: ${e.message}`);}
+  finally{btn.classList.remove('loading');btn.disabled=!files.mri;}
+}
+
+function showErr(msg){const b=document.getElementById('err-box');b.textContent='Warning: '+msg;b.style.display='block';}
+
+function showResults(d) {
+  document.getElementById('placeholder').style.display='none';
+  document.getElementById('results').classList.add('vis');
+
+  const tl=document.getElementById('tumor-lbl');
+  tl.textContent=cap(d.tumor_class); tl.className=`tumor-cls ${d.tumor_class}`;
+
+  const pill=document.getElementById('conf-pill');
+  pill.textContent=`${Math.round(d.confidence*100)}% confident`;
+  pill.className=`unc-pill ${d.uncertainty>0.05?'unc-high':'unc-low'}`;
+
+  renderBars('tumor-bars',d.tumor_probs,'bar-tumor');
+  document.getElementById('emo-lbl').textContent=cap(d.emotion_class);
+  renderBars('emo-bars',d.emotion_probs,'bar-emotion');
+  document.getElementById('mod-tags').innerHTML=d.available_modalities.map(m=>`<span class="mod-tag">${m.toUpperCase()}</span>`).join('');
+  document.getElementById('note-box').textContent=d.note;
+
+  if(d.gradcam&&d.gradcam.original_b64){
+    document.getElementById('gc-original').src=`data:image/png;base64,${d.gradcam.original_b64}`;
+    document.getElementById('gc-heatmap').src=`data:image/png;base64,${d.gradcam.heatmap_b64}`;
+    document.getElementById('gc-overlay').src=`data:image/png;base64,${d.gradcam.overlay_b64}`;
+    document.getElementById('gc-classname').textContent=d.gradcam.class_name;
+    document.getElementById('gradcam-section').classList.add('vis');
+    document.getElementById('gradcam-placeholder').style.display='none';
+  }
+}
+
+function renderBars(id,probs,cls){
+  const c=document.getElementById(id);c.innerHTML='';
+  Object.entries(probs).sort((a,b)=>b[1]-a[1]).forEach(([lbl,p])=>{
+    c.innerHTML+=`<div class="bar-row"><div class="bar-label">${lbl}</div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${p*100}%"></div></div><div class="bar-pct">${(p*100).toFixed(1)}%</div></div>`;
+  });
+}
+function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+</script>
+</body>
+</html>
