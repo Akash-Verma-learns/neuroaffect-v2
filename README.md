@@ -59,6 +59,7 @@ Train each encoder independently (in any order):
 ```bash
 python src/training/run.py --stage mri     # ~50 epochs, fastest to converge
 python src/training/run.py --stage face    # ~40 epochs
+python src/training/run.py --stage eeg_emotion 
 python src/training/run.py --stage eeg     # ~30 epochs
 python src/training/run.py --stage fmri    # ~50 epochs (needs GPU for speed)
 ```
