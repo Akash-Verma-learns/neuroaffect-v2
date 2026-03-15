@@ -20,7 +20,7 @@ class ConvBlock(nn.Module):
         layers = [
             nn.Conv2d(in_ch, out_ch, k, stride=stride, padding=k//2, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),       # ← safe for forward hooks + autograd.grad
         ]
         if pool:
             layers.append(nn.MaxPool2d(2))

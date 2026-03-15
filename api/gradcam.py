@@ -15,16 +15,15 @@ from PIL import Image
 class GradCAMPP:
     """
     Grad-CAM++ on the last ConvBlock of MRIEncoder.
-    Targets features[3].block[0] = Conv2d(128, 256).
-    Uses autograd.grad for reliable cross-version gradient computation.
+    Targets features[3].block[2] = ReLU output (after Conv+BN, before MaxPool).
+    Hooking after activation gives non-zero, spatially meaningful feature maps.
     """
 
     def __init__(self, mri_encoder: torch.nn.Module):
         self.encoder = mri_encoder
-        # Target = last conv layer before global pool
-        # MRIEncoder.features[3] = ConvBlock(128, 256)
-        # ConvBlock.block[0]     = Conv2d(128, 256, 3, padding=1)
-        self.target_layer = mri_encoder.features[3].block[0]
+        # block[0]=Conv2d  block[1]=BN  block[2]=ReLU  block[3]=MaxPool
+        # Hook after ReLU: captures activated maps at full 8×8 spatial resolution
+        self.target_layer = mri_encoder.features[3].block[2]
 
     def generate(self, img_tensor: torch.Tensor,
                  class_idx: int = None,

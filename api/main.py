@@ -44,6 +44,8 @@ if frontend_dir.exists():
 #  Schemas
 # ─────────────────────────────────────────────────────────────────────────────
 
+from typing import Any, Dict, Optional
+
 class PredictionResponse(BaseModel):
     tumor_class:          str
     tumor_probs:          dict
@@ -53,7 +55,8 @@ class PredictionResponse(BaseModel):
     confidence:           float
     note:                 str
     available_modalities: list
-
+    inference_method:     Optional[str] = None
+    gradcam:              Optional[Dict[str, Any]] = None
 
 class HealthResponse(BaseModel):
     status: str

@@ -273,7 +273,7 @@ function showResults(d) {
 
   const pill=document.getElementById('conf-pill');
   pill.textContent=`${Math.round(d.confidence*100)}% confident`;
-  pill.className=`unc-pill ${d.uncertainty>0.05?'unc-high':'unc-low'}`;
+  pill.className=`unc-pill ${d.uncertainty>0.30?'unc-high':'unc-low'}`;
 
   renderBars('tumor-bars',d.tumor_probs,'bar-tumor');
   document.getElementById('emo-lbl').textContent=cap(d.emotion_class);
